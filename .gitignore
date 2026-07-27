@@ -1,0 +1,18 @@
+# Credenciales y configuración privada
+claves_privadas.env
+.env
+.streamlit/secrets.toml
+
+# Entornos y archivos generados localmente
+.venv/
+.venv.*/
+__pycache__/
+*.pyc
+inicio_app.log
+tmp/
+dist/
+build/
+
+# Candidaturas e informes generados
+output/
+informe_*.pdf

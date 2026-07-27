@@ -15,6 +15,11 @@ from evaluator import (
     extract_text_from_path,
     extract_text_from_pdf,
 )
+from monday_integration import (
+    MondayIntegrationError,
+    monday_is_configured,
+    sync_evaluation_to_monday,
+)
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -81,6 +86,13 @@ with st.sidebar:
             '<p class="status-error">● No se encontró 01_Bases.pdf</p>',
             unsafe_allow_html=True,
         )
+    if monday_is_configured():
+        st.markdown(
+            '<p class="status-ok">● Monday conectado</p>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption("Monday no configurado")
 
     api_key = st.text_input(
         "OpenAI API Key",
@@ -127,6 +139,7 @@ if evaluate_clicked and uploaded_file is not None:
     else:
         try:
             with st.spinner("Extraendo o formulario e aplicando a rúbrica oficial..."):
+                uploaded_pdf_bytes = uploaded_file.getvalue()
                 proposal_text = extract_text_from_pdf(uploaded_file)
                 bases_text = load_bases_text(
                     str(BASES_PATH), BASES_PATH.stat().st_mtime
@@ -140,6 +153,23 @@ if evaluate_clicked and uploaded_file is not None:
                 )
                 st.session_state["evaluation"] = result
                 st.session_state["source_filename"] = uploaded_file.name
+                st.session_state.pop("monday_item", None)
+                st.session_state.pop("monday_error", None)
+
+                if monday_is_configured():
+                    report_es_pdf = build_pdf_report(result, language="es")
+                    report_gl_pdf = build_pdf_report(result, language="gl")
+                    try:
+                        monday_item = sync_evaluation_to_monday(
+                            result,
+                            uploaded_file.name,
+                            uploaded_pdf_bytes,
+                            report_es_pdf,
+                            report_gl_pdf,
+                        )
+                        st.session_state["monday_item"] = monday_item
+                    except MondayIntegrationError as monday_exc:
+                        st.session_state["monday_error"] = str(monday_exc)
         except EvaluationError as exc:
             st.error(str(exc))
         except Exception as exc:
@@ -163,6 +193,22 @@ if evaluation:
     )
     entity_col.metric("Entidad", evaluation["entidad"])
     st.caption(f"Vertical estratégica: {evaluation['vertical']}")
+
+    monday_item = st.session_state.get("monday_item")
+    monday_error = st.session_state.get("monday_error")
+    if monday_item:
+        if monday_item.get("url"):
+            st.success(
+                f"Evaluación registrada en Monday: "
+                f"[{monday_item['name']}]({monday_item['url']})"
+            )
+        else:
+            st.success("Evaluación registrada correctamente en Monday.")
+    elif monday_error:
+        st.warning(
+            "La evaluación se completó, pero no pudo registrarse en Monday: "
+            f"{monday_error}"
+        )
 
     st.subheader("Desglose por criterios")
     score_frame = pd.DataFrame(criterion_rows(evaluation))
