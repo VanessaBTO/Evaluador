@@ -9,8 +9,6 @@ import streamlit as st
 
 from evaluator import (
     CRITERIA,
-    DEFAULT_BASE_URLS,
-    DEFAULT_MODELS,
     EvaluationError,
     build_pdf_report,
     evaluate_proposal,
@@ -84,19 +82,14 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    provider = st.selectbox("Proveedor LLM", ["OpenAI", "Groq", "Ollama"])
     api_key = st.text_input(
-        "API Key",
+        "OpenAI API Key",
         type="password",
-        disabled=provider == "Ollama",
-        help="La clave solo se usa durante la llamada y no se guarda.",
-    )
-    model = st.text_input("Modelo", value=DEFAULT_MODELS[provider])
-    default_url = DEFAULT_BASE_URLS[provider] or ""
-    base_url = st.text_input(
-        "URL base (opcional)",
-        value=default_url,
-        help="Útil para Groq, Ollama o servidores compatibles con OpenAI.",
+        placeholder="sk-...",
+        help=(
+            "Introduce tu propia clave de OpenAI. Se utiliza únicamente durante "
+            "la evaluación y no se guarda en disco."
+        ),
     )
     st.divider()
     st.caption("Umbral de entrevista: 70/100")
@@ -127,8 +120,8 @@ evaluate_clicked = st.button(
 )
 
 if evaluate_clicked and uploaded_file is not None:
-    if provider != "Ollama" and not api_key.strip():
-        st.error(f"Introduce una API Key para {provider}.")
+    if not api_key.strip():
+        st.error("Introduce tu OpenAI API Key para realizar la evaluación.")
     elif not BASES_PATH.is_file():
         st.error("No se puede evaluar: falta el archivo 01_Bases.pdf.")
     else:
@@ -141,9 +134,8 @@ if evaluate_clicked and uploaded_file is not None:
                 result = evaluate_proposal(
                     proposal_text,
                     api_key,
-                    provider=provider,
-                    model=model.strip(),
-                    base_url=base_url.strip() or None,
+                    provider="OpenAI",
+                    model="gpt-4.1-mini",
                     bases_text=bases_text,
                 )
                 st.session_state["evaluation"] = result
